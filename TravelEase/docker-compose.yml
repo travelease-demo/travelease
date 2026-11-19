@@ -1,0 +1,62 @@
+# =============================================================================================
+# TravelEase + PostgreSQL
+#
+#   cp .env.example .env        (then edit the password)
+#   docker compose up -d --build
+#   docker compose ps           -> both services should become "healthy"
+#   docker compose logs -f app
+#   docker compose down         (add -v to also delete the database and report volumes)
+#
+# Override the Dockerfile:   DOCKERFILE=docker/Dockerfile.instructions docker compose up -d --build
+# =============================================================================================
+name: travelease
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-travelease}
+      POSTGRES_USER: ${DB_USER:-travelease}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Uncomment to reach the database from tools on your machine (psql, DBeaver, dotnet ef)
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION:-Release}
+    image: travelease:${APP_VERSION:-1.0.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_HTTP_PORTS: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-travelease}
+      DB_USER: ${DB_USER:-travelease}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      Database__SeedSampleData: ${SEED_SAMPLE_DATA:-true}
+      App__CurrencySymbol: ${CURRENCY_SYMBOL:-₹}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - appdata:/app/data
+
+volumes:
+  pgdata:
+  appdata:

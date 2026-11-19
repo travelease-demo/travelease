@@ -1,0 +1,107 @@
+@model TripDetailsViewModel
+@{
+    var t = Model.Trip;
+}
+
+<div class="page-header">
+    <div>
+        <a asp-action="Index" class="back-link"><i class="bi bi-arrow-left"></i> Trips</a>
+        <h1 class="page-title">@t.Source <i class="bi bi-arrow-right text-muted"></i> @t.Destination</h1>
+        <p class="page-subtitle">@t.TripCode · @(t.Operator ?? t.TransportType.ToString()) · <span class="status-pill @UiFormatter.TripStatusClass(t.Status)">@t.Status</span></p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-light" data-modal-url="@Url.Action("Edit", new { id = t.Id })"><i class="bi bi-pencil me-1"></i>Edit</button>
+        <button class="btn btn-light text-danger"
+                data-confirm-action="@Url.Action("Delete", new { id = t.Id })"
+                data-confirm-title="Delete trip @t.TripCode?"
+                data-confirm-message="Trips with bookings cannot be deleted — set the status to Cancelled instead."
+                data-confirm-button="Delete trip"><i class="bi bi-trash me-1"></i>Delete</button>
+        @if (t.IsBookable)
+        {
+            <button class="btn btn-primary" data-modal-url="@Url.Action("Create", "Bookings", new { tripId = t.Id })"><i class="bi bi-ticket-perforated me-1"></i>Book seats</button>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card-panel h-100">
+            <div class="panel-body">
+                <div class="journey">
+                    <div class="journey-point">
+                        <small>Departure</small>
+                        <strong>@t.Source</strong>
+                        <span>@Fmt.DateTimeShort(t.DepartureDate) UTC</span>
+                    </div>
+                    <div class="journey-line">
+                        <i class="bi @UiFormatter.TransportIcon(t.TransportType)"></i>
+                        <span>@Fmt.Duration(t.Duration)</span>
+                    </div>
+                    <div class="journey-point text-end">
+                        <small>Arrival</small>
+                        <strong>@t.Destination</strong>
+                        <span>@Fmt.DateTimeShort(t.ArrivalDate) UTC</span>
+                    </div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(t.Description))
+                {
+                    <p class="text-muted mt-4 mb-0">@t.Description</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="row g-3">
+            <div class="col-6"><div class="mini-stat"><span>Ticket price</span><strong>@Fmt.Money(t.TicketPrice)</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Revenue</span><strong>@Fmt.CompactMoney(Model.Revenue)</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Seats left</span><strong>@t.AvailableSeats / @t.TotalSeats</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Active bookings</span><strong>@Model.ActiveBookings</strong></div></div>
+            <div class="col-12">
+                <div class="mini-stat">
+                    <span>Occupancy</span>
+                    <strong>@t.OccupancyPercent%</strong>
+                    <div class="meter mt-2 @(t.OccupancyPercent >= 90 ? "meter-hot" : "")"><span style="width:@(t.OccupancyPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card-panel">
+    <div class="panel-header">
+        <div>
+            <h2 class="panel-title">Passenger bookings</h2>
+            <p class="panel-subtitle">@t.Bookings.Count booking(s) on this trip</p>
+        </div>
+    </div>
+    @if (!t.Bookings.Any())
+    {
+        <div class="empty-state"><i class="bi bi-ticket-perforated"></i><h3>No bookings yet</h3><p>Seats on this trip are still fully available.</p></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0">
+                <thead><tr><th>Reference</th><th>Customer</th><th class="text-center">Pax</th><th class="text-end">Total</th><th>Booked</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var b in t.Bookings)
+                {
+                    <tr class="row-link" data-href="@Url.Action("Details", "Bookings", new { id = b.Id })">
+                        <td><span class="ref-code">@b.BookingReference</span></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar avatar-sm @UiFormatter.AvatarClass(b.Customer!.FullName)">@b.Customer.Initials</span>
+                                <span>@b.Customer.FullName<div class="small text-muted">@b.Customer.Email</div></span>
+                            </div>
+                        </td>
+                        <td class="text-center">@b.Passengers</td>
+                        <td class="text-end fw-semibold">@Fmt.Money(b.TotalPrice)</td>
+                        <td class="small text-muted">@Fmt.DateTimeShort(b.BookingDate)</td>
+                        <td><partial name="_BookingStatus" model="b.Status" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

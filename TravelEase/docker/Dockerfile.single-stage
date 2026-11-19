@@ -1,0 +1,27 @@
+# =============================================================================================
+# TravelEase - naive single-stage image (for COMPARISON only - do not use in production)
+#
+#   docker build -f docker/Dockerfile.single-stage -t travelease:single-stage .
+#   docker images travelease          <- compare the SIZE with the multi-stage image
+#
+# What is wrong with it (and fixed in ../Dockerfile):
+#   * ships the whole .NET SDK, compilers, NuGet cache and source (measured: 1.58 GB vs 333 MB)
+#   * COPY . . before restore -> every code change re-downloads all packages (no layer caching)
+#   * runs as root
+#   * shell-form CMD -> PID 1 is /bin/sh, not dotnet, so SIGTERM from `docker stop` goes to
+#     the shell instead of the application (compare stop time and shutdown logs with ../Dockerfile)
+#   * no HEALTHCHECK, no LABELs
+# =============================================================================================
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /src
+COPY . .
+RUN dotnet publish TravelEase.csproj -c Release -o /app
+
+WORKDIR /app
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+
+# Shell form: runs as  /bin/sh -c "dotnet TravelEase.dll"
+CMD dotnet TravelEase.dll

@@ -1,0 +1,285 @@
+@model ReportsViewModel
+@{
+    var fromStr = Model.From?.ToString("yyyy-MM-dd");
+    var toStr = Model.To?.ToString("yyyy-MM-dd");
+    var chartData = new
+    {
+        labels = Model.Monthly.Select(m => m.Label),
+        confirmed = Model.Monthly.Select(m => m.Confirmed),
+        pending = Model.Monthly.Select(m => m.Pending),
+        cancelled = Model.Monthly.Select(m => m.Cancelled)
+    };
+}
+
+@functions {
+    private async Task ExportButton(ReportType type, string? from, string? to)
+    {
+        <form asp-action="Export" method="post" class="d-inline">
+            <input type="hidden" name="type" value="@type" />
+            <input type="hidden" name="from" value="@from" />
+            <input type="hidden" name="to" value="@to" />
+            <button class="btn btn-sm btn-light" type="submit" data-loading-text="Exporting…" title="Save as CSV to the reports volume"><i class="bi bi-download me-1"></i>Export CSV</button>
+        </form>
+        await Task.CompletedTask;
+    }
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Reports</h1>
+        <p class="page-subtitle">Revenue, monthly bookings, customers, trips and status analysis</p>
+    </div>
+    <form class="page-actions filter-inline" method="get">
+        <input type="date" name="from" class="form-control form-control-sm" value="@fromStr" aria-label="From date" title="Booked from" />
+        <span class="text-muted small">to</span>
+        <input type="date" name="to" class="form-control form-control-sm" value="@toStr" aria-label="To date" title="Booked to" />
+        <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Apply</button>
+        @if (Model.From.HasValue || Model.To.HasValue)
+        {
+            <a class="btn btn-sm btn-link" asp-action="Index">Reset</a>
+        }
+    </form>
+</div>
+
+<!-- Summary -->
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg"><div class="stat-card compact"><div class="stat-label">Total revenue</div><div class="stat-value">@Fmt.CompactMoney(Model.TotalRevenue)</div><div class="stat-meta">confirmed bookings</div></div></div>
+    <div class="col-6 col-lg"><div class="stat-card compact"><div class="stat-label">Bookings</div><div class="stat-value">@Fmt.Number(Model.TotalBookings)</div><div class="stat-meta">all statuses</div></div></div>
+    <div class="col-6 col-lg"><div class="stat-card compact"><div class="stat-label">Passengers</div><div class="stat-value">@Fmt.Number(Model.TotalPassengers)</div><div class="stat-meta">excl. cancelled</div></div></div>
+    <div class="col-6 col-lg"><div class="stat-card compact"><div class="stat-label">Avg. booking value</div><div class="stat-value">@Fmt.Money(Model.AverageBookingValue)</div><div class="stat-meta">confirmed</div></div></div>
+    <div class="col-12 col-lg"><div class="stat-card compact"><div class="stat-label">Cancellation rate</div><div class="stat-value">@Model.CancellationRate%</div><div class="stat-meta">of all bookings</div></div></div>
+</div>
+
+<ul class="nav report-tabs mb-3" role="tablist">
+    <li><button class="active" data-bs-toggle="tab" data-bs-target="#tab-monthly" type="button" role="tab"><i class="bi bi-calendar3 me-1"></i>Monthly</button></li>
+    <li><button data-bs-toggle="tab" data-bs-target="#tab-status" type="button" role="tab"><i class="bi bi-pie-chart me-1"></i>Booking status</button></li>
+    <li><button data-bs-toggle="tab" data-bs-target="#tab-customers" type="button" role="tab"><i class="bi bi-people me-1"></i>Customers</button></li>
+    <li><button data-bs-toggle="tab" data-bs-target="#tab-trips" type="button" role="tab"><i class="bi bi-airplane me-1"></i>Trips</button></li>
+    <li><button data-bs-toggle="tab" data-bs-target="#tab-files" type="button" role="tab"><i class="bi bi-folder2-open me-1"></i>Generated files <span class="count-chip">@Model.Storage.Files.Count</span></button></li>
+</ul>
+
+<div class="tab-content">
+    <!-- Monthly -->
+    <div class="tab-pane fade show active" id="tab-monthly" role="tabpanel">
+        <div class="card-panel mb-3">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Monthly booking report</h2>
+                    <p class="panel-subtitle">Bookings per month by status</p>
+                </div>
+                @{ await ExportButton(ReportType.Monthly, fromStr, toStr); }
+            </div>
+            <div class="panel-body">
+                <div class="legend-row mb-2">
+                    <span><i class="dot status-confirmed"></i>Confirmed</span>
+                    <span><i class="dot status-pending"></i>Pending</span>
+                    <span><i class="dot status-cancelled"></i>Cancelled</span>
+                </div>
+                <div class="chart-box"><canvas id="monthlyChart" role="img" aria-label="Monthly bookings by status, stacked bar chart"></canvas></div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern mb-0">
+                    <thead><tr><th>Month</th><th class="text-end">Bookings</th><th class="text-end">Confirmed</th><th class="text-end">Pending</th><th class="text-end">Cancelled</th><th class="text-end">Passengers</th><th class="text-end">Revenue</th></tr></thead>
+                    <tbody>
+                    @foreach (var m in Model.Monthly.Reverse())
+                    {
+                        <tr>
+                            <td class="fw-medium">@m.Label</td>
+                            <td class="text-end">@m.Bookings</td>
+                            <td class="text-end">@m.Confirmed</td>
+                            <td class="text-end">@m.Pending</td>
+                            <td class="text-end">@m.Cancelled</td>
+                            <td class="text-end">@m.Passengers</td>
+                            <td class="text-end fw-semibold">@Fmt.Money(m.Revenue)</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                    <tr>
+                        <th>Total</th>
+                        <th class="text-end">@Model.Monthly.Sum(m => m.Bookings)</th>
+                        <th class="text-end">@Model.Monthly.Sum(m => m.Confirmed)</th>
+                        <th class="text-end">@Model.Monthly.Sum(m => m.Pending)</th>
+                        <th class="text-end">@Model.Monthly.Sum(m => m.Cancelled)</th>
+                        <th class="text-end">@Model.Monthly.Sum(m => m.Passengers)</th>
+                        <th class="text-end">@Fmt.Money(Model.Monthly.Sum(m => m.Revenue))</th>
+                    </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status -->
+    <div class="tab-pane fade" id="tab-status" role="tabpanel">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Booking status report</h2>
+                    <p class="panel-subtitle">Distribution of bookings, passengers and value by status</p>
+                </div>
+                @{ await ExportButton(ReportType.Status, fromStr, toStr); }
+            </div>
+            <div class="panel-body">
+                <div class="segment-bar segment-bar-lg mb-4" role="img" aria-label="Booking status distribution">
+                    @foreach (var s in Model.Statuses)
+                    {
+                        <span class="seg @UiFormatter.StatusClass(s.Status)" style="flex:@s.Bookings" title="@s.Status: @s.Percent%"></span>
+                    }
+                </div>
+                <div class="row g-3">
+                    @foreach (var s in Model.Statuses)
+                    {
+                        <div class="col-md-4">
+                            <div class="status-card @UiFormatter.StatusClass(s.Status) static">
+                                <div class="stat-label"><i class="bi @UiFormatter.StatusIcon(s.Status) me-1"></i>@s.Status</div>
+                                <div class="stat-value">@s.Bookings <small class="text-muted fs-6">(@s.Percent%)</small></div>
+                                <div class="small text-muted">@s.Passengers passengers · @Fmt.Money(s.Value) booking value</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customers -->
+    <div class="tab-pane fade" id="tab-customers" role="tabpanel">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Customer report</h2>
+                    <p class="panel-subtitle">Top 15 customers by confirmed revenue</p>
+                </div>
+                @{ await ExportButton(ReportType.Customers, fromStr, toStr); }
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern align-middle mb-0">
+                    <thead><tr><th>#</th><th>Customer</th><th>Country</th><th class="text-end">Bookings</th><th class="text-end">Passengers</th><th class="text-end">Revenue</th><th>Last booking</th></tr></thead>
+                    <tbody>
+                    @{ var rank = 0; }
+                    @foreach (var c in Model.Customers)
+                    {
+                        rank++;
+                        <tr class="row-link" data-href="@Url.Action("Details", "Customers", new { id = c.CustomerId })">
+                            <td class="text-muted">@rank</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar avatar-sm @UiFormatter.AvatarClass(c.Name)">@string.Concat(c.Name.Split(' ').Take(2).Select(p => p[0]))</span>
+                                    <span>@c.Name<div class="small text-muted">@c.Email</div></span>
+                                </div>
+                            </td>
+                            <td>@c.Country</td>
+                            <td class="text-end">@c.Bookings</td>
+                            <td class="text-end">@c.Passengers</td>
+                            <td class="text-end fw-semibold">@Fmt.Money(c.Revenue)</td>
+                            <td class="small text-muted">@Fmt.Date(c.LastBooking)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trips -->
+    <div class="tab-pane fade" id="tab-trips" role="tabpanel">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Trip report</h2>
+                    <p class="panel-subtitle">Occupancy and revenue per trip, highest revenue first</p>
+                </div>
+                @{ await ExportButton(ReportType.Trips, fromStr, toStr); }
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern align-middle mb-0">
+                    <thead><tr><th>Trip</th><th>Route</th><th>Departure</th><th>Status</th><th style="min-width:150px">Occupancy</th><th class="text-end">Bookings</th><th class="text-end">Revenue</th></tr></thead>
+                    <tbody>
+                    @foreach (var t in Model.Trips)
+                    {
+                        <tr class="row-link" data-href="@Url.Action("Details", "Trips", new { id = t.TripId })">
+                            <td><i class="bi @UiFormatter.TransportIcon(t.Transport) text-muted me-1"></i><span class="fw-medium">@t.TripCode</span></td>
+                            <td>@t.Route</td>
+                            <td class="small text-nowrap">@Fmt.Date(t.DepartureDate)</td>
+                            <td><span class="status-pill @UiFormatter.TripStatusClass(t.Status)">@t.Status</span></td>
+                            <td>
+                                <div class="d-flex justify-content-between small"><span>@t.BookedSeats/@t.TotalSeats</span><span class="text-muted">@t.Occupancy%</span></div>
+                                <div class="meter meter-thin @(t.Occupancy >= 90 ? "meter-hot" : "")"><span style="width:@(t.Occupancy.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+                            </td>
+                            <td class="text-end">@t.Bookings</td>
+                            <td class="text-end fw-semibold">@Fmt.Money(t.Revenue)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generated files (Docker volume) -->
+    <div class="tab-pane fade" id="tab-files" role="tabpanel">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Generated report files</h2>
+                    <p class="panel-subtitle">
+                        Stored in <code>@Model.Storage.Path</code>
+                        @if (Model.Storage.Writable)
+                        {
+                            <span class="status-pill status-confirmed ms-1"><i class="bi bi-check-circle-fill"></i>Writable</span>
+                        }
+                        else
+                        {
+                            <span class="status-pill status-cancelled ms-1"><i class="bi bi-x-circle-fill"></i>Not writable</span>
+                        }
+                    </p>
+                </div>
+                <span class="small text-muted">@Model.Storage.Files.Count file(s) · @Fmt.Bytes(Model.Storage.TotalBytes)</span>
+            </div>
+            <div class="panel-body pt-0">
+                <div class="alert alert-info small mb-3">
+                    <i class="bi bi-hdd-stack me-1"></i>
+                    In Docker, mount a volume at this path (e.g. <code>-v travelease-reports:/app/data/reports</code>) so exported files survive container restarts and re-creation.
+                </div>
+            </div>
+            @if (!Model.Storage.Files.Any())
+            {
+                <div class="empty-state"><i class="bi bi-folder2"></i><h3>No files yet</h3><p>Use an <em>Export CSV</em> button on any report tab.</p></div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-modern align-middle mb-0">
+                        <thead><tr><th>File</th><th class="text-end">Size</th><th>Modified (UTC)</th><th class="text-end">Actions</th></tr></thead>
+                        <tbody>
+                        @foreach (var file in Model.Storage.Files)
+                        {
+                            <tr>
+                                <td><i class="bi bi-filetype-csv text-success me-2"></i>@file.Name</td>
+                                <td class="text-end small">@Fmt.Bytes(file.SizeBytes)</td>
+                                <td class="small text-muted">@Fmt.DateTimeShort(file.CreatedUtc)</td>
+                                <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-icon" asp-action="Download" asp-route-file="@file.Name" title="Download"><i class="bi bi-download"></i></a>
+                                    <button class="btn btn-sm btn-icon text-danger" title="Delete"
+                                            data-confirm-action="@Url.Action("DeleteFile", new { file = file.Name })"
+                                            data-confirm-title="Delete @file.Name?"
+                                            data-confirm-message="The file will be removed from the reports volume."
+                                            data-confirm-button="Delete file"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="monthly-data">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartData))</script>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="~/js/charts.js" asp-append-version="true"></script>
+}

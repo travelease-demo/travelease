@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+# =============================================================================================
+# TravelEase - size-optimised image on Alpine Linux (musl)
+#
+#   docker build -f docker/Dockerfile.alpine -t travelease:alpine .
+#   docker images travelease      <- compare with travelease:1.0.0 (Debian) and :single-stage
+#
+# Notes:
+#   * The publish output is framework-dependent and portable, so the (Debian) SDK image can
+#     build it - only the runtime base changes.
+#   * Alpine .NET images default to DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true (no ICU).
+#     We install icu-libs so the "en-IN" number format works. Remove the apk line and set
+#     App__Culture= to see the app fall back to invariant formatting (logged as a warning).
+# =============================================================================================
+ARG DOTNET_VERSION=8.0
+
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build
+ARG APP_VERSION=1.0.0
+WORKDIR /src
+COPY TravelEase.csproj ./
+RUN dotnet restore TravelEase.csproj
+COPY . .
+RUN dotnet publish TravelEase.csproj -c Release -o /app/publish --no-restore -p:UseAppHost=false -p:Version="${APP_VERSION}"
+
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-alpine AS final
+ARG APP_VERSION=1.0.0
+LABEL org.opencontainers.image.title="TravelEase" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      com.travelease.dockerfile="alpine"
+
+RUN apk add --no-cache icu-libs icu-data-full
+
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_HTTP_PORTS=8080 \
+    Storage__ReportsPath=/app/data/reports \
+    Storage__DataProtectionKeysPath=/app/data/keys
+
+WORKDIR /app
+RUN mkdir -p /app/data/reports /app/data/keys && chown -R "${APP_UID}:${APP_UID}" /app/data
+COPY --from=build /app/publish .
+
+USER ${APP_UID}
+VOLUME ["/app/data"]
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["dotnet", "TravelEase.dll", "healthcheck", "/health/ready"]
+ENTRYPOINT ["dotnet", "TravelEase.dll"]

@@ -1,0 +1,138 @@
+@model Booking
+@{
+    var b = Model;
+    var trip = b.Trip!;
+    var customer = b.Customer!;
+}
+
+<div class="page-header">
+    <div>
+        <a asp-action="Index" class="back-link"><i class="bi bi-arrow-left"></i> Bookings</a>
+        <h1 class="page-title d-flex align-items-center gap-2 flex-wrap">
+            <span class="ref-code fs-4">@b.BookingReference</span>
+            <partial name="_BookingStatus" model="b.Status" />
+        </h1>
+        <p class="page-subtitle">Booked @Fmt.DateTimeShort(b.BookingDate) UTC</p>
+    </div>
+    <div class="page-actions">
+        @if (b.Status == BookingStatus.Pending)
+        {
+            <button class="btn btn-success"
+                    data-confirm-action="@Url.Action("Confirm", new { id = b.Id })"
+                    data-confirm-title="Confirm @b.BookingReference?"
+                    data-confirm-message="@b.Passengers passenger(s) · @Fmt.Money(b.TotalPrice)"
+                    data-confirm-button="Confirm booking" data-confirm-variant="success"><i class="bi bi-check2-circle me-1"></i>Confirm</button>
+        }
+        @if (b.Status != BookingStatus.Cancelled)
+        {
+            <button class="btn btn-light text-danger" data-modal-url="@Url.Action("Cancel", new { id = b.Id })"><i class="bi bi-x-circle me-1"></i>Cancel booking</button>
+        }
+        <button class="btn btn-light" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card-panel ticket">
+            <div class="ticket-head">
+                <div>
+                    <small>Trip</small>
+                    <strong>@trip.TripCode</strong>
+                </div>
+                <div class="text-end">
+                    <small>@trip.TransportType</small>
+                    <strong>@(trip.Operator ?? "—")</strong>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="journey">
+                    <div class="journey-point">
+                        <small>From</small>
+                        <strong>@trip.Source</strong>
+                        <span>@Fmt.DateTimeShort(trip.DepartureDate) UTC</span>
+                    </div>
+                    <div class="journey-line">
+                        <i class="bi @UiFormatter.TransportIcon(trip.TransportType)"></i>
+                        <span>@Fmt.Duration(trip.Duration)</span>
+                    </div>
+                    <div class="journey-point text-end">
+                        <small>To</small>
+                        <strong>@trip.Destination</strong>
+                        <span>@Fmt.DateTimeShort(trip.ArrivalDate) UTC</span>
+                    </div>
+                </div>
+
+                <hr class="ticket-divider" />
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <h3 class="mini-title">Lead traveller</h3>
+                        <a class="d-flex align-items-center gap-2 text-reset text-decoration-none" asp-controller="Customers" asp-action="Details" asp-route-id="@customer.Id">
+                            <span class="avatar @UiFormatter.AvatarClass(customer.FullName)">@customer.Initials</span>
+                            <span>
+                                <span class="d-block fw-semibold">@customer.FullName</span>
+                                <span class="d-block small text-muted">@customer.Email · @customer.Phone</span>
+                            </span>
+                        </a>
+                    </div>
+                    <div class="col-sm-6">
+                        <h3 class="mini-title">Price breakdown</h3>
+                        <dl class="kv-list compact">
+                            <dt>Ticket price</dt><dd>@Fmt.MoneyPrecise(b.UnitPrice)</dd>
+                            <dt>Passengers</dt><dd>× @b.Passengers</dd>
+                            <dt class="fw-semibold">Total</dt><dd class="fw-bold fs-5">@Fmt.MoneyPrecise(b.TotalPrice)</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(b.Notes))
+                {
+                    <div class="note-box mt-3"><i class="bi bi-sticky me-2"></i>@b.Notes</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card-panel h-100">
+            <div class="panel-header"><h2 class="panel-title">Booking timeline</h2></div>
+            <div class="panel-body pt-0">
+                <ul class="timeline">
+                    <li class="done">
+                        <strong>Booking created</strong>
+                        <span>@Fmt.DateTimeShort(b.BookingDate)</span>
+                    </li>
+                    @if (b.ConfirmedAt.HasValue)
+                    {
+                        <li class="done success">
+                            <strong>Confirmed</strong>
+                            <span>@Fmt.DateTimeShort(b.ConfirmedAt)</span>
+                        </li>
+                    }
+                    else if (b.Status == BookingStatus.Pending)
+                    {
+                        <li class="waiting">
+                            <strong>Awaiting confirmation</strong>
+                            <span>Seats are held for this booking</span>
+                        </li>
+                    }
+                    @if (b.CancelledAt.HasValue)
+                    {
+                        <li class="done danger">
+                            <strong>Cancelled</strong>
+                            <span>@Fmt.DateTimeShort(b.CancelledAt)</span>
+                            @if (!string.IsNullOrEmpty(b.CancellationReason))
+                            {
+                                <em>“@b.CancellationReason”</em>
+                            }
+                        </li>
+                    }
+                    <li class="@(trip.DepartureDate < DateTime.UtcNow ? "done" : "")">
+                        <strong>Departure</strong>
+                        <span>@Fmt.DateTimeShort(trip.DepartureDate)</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

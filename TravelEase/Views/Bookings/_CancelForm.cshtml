@@ -1,0 +1,28 @@
+@model BookingCancelModel
+<form asp-controller="Bookings" asp-action="Cancel" asp-route-id="@Model.Id" method="post" data-ajax-form novalidate>
+    <input type="hidden" asp-for="BookingReference" />
+    <div class="modal-header">
+        <div class="modal-icon tint-red"><i class="bi bi-x-octagon"></i></div>
+        <div>
+            <h5 class="modal-title">Cancel booking @Model.BookingReference</h5>
+            <p class="modal-subtitle">Seats will be released back to the trip inventory. This cannot be undone.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger small"></div>
+        <label asp-for="Reason" class="form-label"></label>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            @foreach (var reason in new[] { "Customer request", "Change of travel plans", "Visa not approved", "Medical emergency", "Duplicate booking" })
+            {
+                <button type="button" class="btn btn-sm btn-chip" data-fill-target="#Reason" data-fill-value="@reason">@reason</button>
+            }
+        </div>
+        <textarea asp-for="Reason" class="form-control" rows="3" placeholder="Why is this booking being cancelled?"></textarea>
+        <span asp-validation-for="Reason" class="invalid-feedback d-block"></span>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep booking</button>
+        <button type="submit" class="btn btn-danger" data-loading-text="Cancelling…"><i class="bi bi-x-circle me-1"></i>Cancel booking</button>
+    </div>
+</form>

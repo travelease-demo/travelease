@@ -1,0 +1,37 @@
+# =============================================================================================
+# TravelEase - image built from ALREADY-PUBLISHED application files (no SDK inside Docker)
+#
+# Step 1 - produce the publish/ folder, either:
+#   a) with the .NET SDK on your machine:
+#        dotnet publish TravelEase.csproj -c Release -o publish -p:UseAppHost=false
+#   b) or with Docker only (uses the "export" stage of ../Dockerfile):
+#        docker build --target export --output publish .
+#
+# Step 2 - build the runtime image:
+#   docker build -f docker/Dockerfile.published -t travelease:published .
+#
+# Typical in CI pipelines where a previous job already compiled and tested the code.
+# =============================================================================================
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+LABEL org.opencontainers.image.title="TravelEase" \
+      com.travelease.dockerfile="published"
+
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_HTTP_PORTS=8080 \
+    Storage__ReportsPath=/app/data/reports \
+    Storage__DataProtectionKeysPath=/app/data/keys
+
+WORKDIR /app
+RUN mkdir -p /app/data/reports /app/data/keys && chown -R "${APP_UID}:${APP_UID}" /app/data
+
+# Copy the pre-built output from the build context
+COPY publish/ .
+
+USER ${APP_UID}
+VOLUME ["/app/data"]
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["dotnet", "TravelEase.dll", "healthcheck", "/health/live"]
+
+ENTRYPOINT ["dotnet", "TravelEase.dll"]

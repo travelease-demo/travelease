@@ -1,0 +1,40 @@
+# Keep the build context small and free of secrets / host artefacts.
+# (Check what is sent: the "transferring context" line in `docker build` output.)
+
+# Build output from the host - the image builds its own
+**/bin/
+**/obj/
+
+# Runtime data generated when running locally
+data/
+
+# IDE / OS files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+**/.DS_Store
+Thumbs.db
+
+# Source control
+.git/
+.gitignore
+.gitattributes
+
+# Secrets and local environment files - never bake these into an image
+.env
+*.env
+!.env.example
+secrets/
+
+# Docker files themselves are not needed inside the image
+docker-compose*.yml
+**/Dockerfile*
+!docker/docker-entrypoint.sh
+
+# Documentation
+*.md
+docs/
+
+# NOTE: "publish/" is intentionally NOT ignored: docker/Dockerfile.published copies it.

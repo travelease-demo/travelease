@@ -1,0 +1,11 @@
+bin/
+obj/
+publish/
+data/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.env
+secrets/

@@ -1,0 +1,85 @@
+@model CustomerDetailsViewModel
+@{
+    var c = Model.Customer;
+}
+
+<div class="page-header">
+    <div>
+        <a asp-action="Index" class="back-link"><i class="bi bi-arrow-left"></i> Customers</a>
+        <h1 class="page-title">@c.FullName</h1>
+        <p class="page-subtitle">Customer #@c.Id · since @Fmt.Date(c.CreatedAt)</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-light" data-modal-url="@Url.Action("Edit", new { id = c.Id })"><i class="bi bi-pencil me-1"></i>Edit</button>
+        <button class="btn btn-light text-danger"
+                data-confirm-action="@Url.Action("Delete", new { id = c.Id })"
+                data-confirm-title="Delete @c.FullName?"
+                data-confirm-message="Customers with booking history cannot be deleted."
+                data-confirm-button="Delete customer"><i class="bi bi-trash me-1"></i>Delete</button>
+        <button class="btn btn-primary" data-modal-url="@Url.Action("Create", "Bookings", new { customerId = c.Id })"><i class="bi bi-plus-lg me-1"></i>New booking</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card-panel profile-card">
+            <div class="panel-body text-center">
+                <span class="avatar avatar-xl @UiFormatter.AvatarClass(c.FullName) mx-auto mb-3">@c.Initials</span>
+                <h2 class="h5 fw-semibold mb-1">@c.FullName</h2>
+                <p class="text-muted small mb-3">@c.City@(c.Country is null ? "" : $", {c.Country}")</p>
+                <ul class="contact-list text-start">
+                    <li><i class="bi bi-envelope"></i><a href="mailto:@c.Email">@c.Email</a></li>
+                    <li><i class="bi bi-telephone"></i><a href="tel:@c.Phone.Replace(" ", "")">@c.Phone</a></li>
+                    <li><i class="bi bi-geo-alt"></i>@(c.City ?? "—")@(c.Country is null ? "" : $", {c.Country}")</li>
+                    <li><i class="bi bi-clock-history"></i>Updated @Fmt.DateTimeShort(c.UpdatedAt ?? c.CreatedAt)</li>
+                </ul>
+            </div>
+        </div>
+        <div class="row g-3 mt-0">
+            <div class="col-6"><div class="mini-stat"><span>Bookings</span><strong>@Model.TotalBookings</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Confirmed</span><strong>@Model.ConfirmedBookings</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Passengers</span><strong>@Model.TotalPassengers</strong></div></div>
+            <div class="col-6"><div class="mini-stat"><span>Total spent</span><strong>@Fmt.CompactMoney(Model.TotalSpent)</strong></div></div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Booking history</h2>
+                    <p class="panel-subtitle">@Model.TotalBookings booking(s), newest first</p>
+                </div>
+            </div>
+            @if (!c.Bookings.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-ticket-perforated"></i>
+                    <h3>No bookings yet</h3>
+                    <p>Create the first booking for this customer.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-modern align-middle mb-0">
+                        <thead><tr><th>Reference</th><th>Trip</th><th>Departure</th><th class="text-center">Pax</th><th class="text-end">Total</th><th>Status</th></tr></thead>
+                        <tbody>
+                        @foreach (var b in c.Bookings)
+                        {
+                            <tr class="row-link" data-href="@Url.Action("Details", "Bookings", new { id = b.Id })">
+                                <td><span class="ref-code">@b.BookingReference</span><div class="small text-muted">@Fmt.Date(b.BookingDate)</div></td>
+                                <td><span class="route-inline">@b.Trip!.Source <i class="bi bi-arrow-right"></i> @b.Trip.Destination</span><div class="small text-muted">@b.Trip.TripCode</div></td>
+                                <td class="small">@Fmt.DateTimeShort(b.Trip.DepartureDate)</td>
+                                <td class="text-center">@b.Passengers</td>
+                                <td class="text-end fw-semibold">@Fmt.Money(b.TotalPrice)</td>
+                                <td><partial name="_BookingStatus" model="b.Status" /></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,218 @@
+@model DashboardViewModel
+@{
+    var growth = Model.RevenueGrowthPercent;
+    var chartData = new
+    {
+        labels = Model.MonthlyRevenue.Select(m => m.Label),
+        revenue = Model.MonthlyRevenue.Select(m => m.Revenue),
+        bookings = Model.MonthlyRevenue.Select(m => m.Bookings)
+    };
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Operations overview</h1>
+        <p class="page-subtitle">Here's what's happening across bookings, trips and revenue today · @Fmt.Date(DateTime.UtcNow)</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-light" asp-controller="Reports" asp-action="Index"><i class="bi bi-file-earmark-bar-graph me-1"></i>View reports</a>
+        <button class="btn btn-primary" data-modal-url="@Url.Action("Create", "Bookings")"><i class="bi bi-plus-lg me-1"></i>New booking</button>
+    </div>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon tint-blue"><i class="bi bi-wallet2"></i></div>
+            <div class="stat-label">Total revenue</div>
+            <div class="stat-value">@Fmt.CompactMoney(Model.TotalRevenue)</div>
+            <div class="stat-meta">
+                @if (growth.HasValue)
+                {
+                    <span class="@(growth >= 0 ? "trend-up" : "trend-down")"><i class="bi @(growth >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")"></i>@Math.Abs(growth.Value)%</span>
+                }
+                <span>@Fmt.CompactMoney(Model.RevenueThisMonth) this month</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon tint-violet"><i class="bi bi-ticket-perforated"></i></div>
+            <div class="stat-label">Total bookings</div>
+            <div class="stat-value">@Fmt.Number(Model.TotalBookings)</div>
+            <div class="stat-meta"><span>@Fmt.Number(Model.TotalPassengers) passengers travelling</span></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon tint-aqua"><i class="bi bi-people"></i></div>
+            <div class="stat-label">Customers</div>
+            <div class="stat-value">@Fmt.Number(Model.TotalCustomers)</div>
+            <div class="stat-meta"><span>+@Model.NewCustomersThisMonth joined this month</span></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon tint-orange"><i class="bi bi-airplane"></i></div>
+            <div class="stat-label">Trips</div>
+            <div class="stat-value">@Fmt.Number(Model.TotalTrips)</div>
+            <div class="stat-meta"><span>@Model.UpcomingTrips upcoming departures</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Booking status -->
+<div class="row g-3 mb-3">
+    @foreach (var (status, count, label) in new[]
+    {
+        (BookingStatus.Confirmed, Model.ConfirmedBookings, "Confirmed bookings"),
+        (BookingStatus.Pending, Model.PendingBookings, "Pending bookings"),
+        (BookingStatus.Cancelled, Model.CancelledBookings, "Cancelled bookings")
+    })
+    {
+        <div class="col-md-4">
+            <a class="status-card @UiFormatter.StatusClass(status)" asp-controller="Bookings" asp-action="Index" asp-route-status="@status">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-label"><i class="bi @UiFormatter.StatusIcon(status) me-1"></i>@label</div>
+                        <div class="stat-value">@Fmt.Number(count)</div>
+                    </div>
+                    <span class="status-percent">@Model.Percent(count)%</span>
+                </div>
+                <div class="meter mt-2"><span style="width:@(Model.Percent(count).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+            </a>
+        </div>
+    }
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-3">
+    <div class="col-xl-8">
+        <div class="card-panel h-100">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Monthly revenue</h2>
+                    <p class="panel-subtitle">Confirmed booking value by booking month · last 12 months</p>
+                </div>
+                <span class="text-muted small">Avg. booking @Fmt.Money(Model.AverageBookingValue)</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-box"><canvas id="revenueChart" aria-label="Monthly revenue bar chart" role="img"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card-panel h-100">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Booking statistics</h2>
+                    <p class="panel-subtitle">Status mix & top destinations</p>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="segment-bar mb-2" role="img" aria-label="Booking status split">
+                    <span class="seg status-confirmed" style="flex:@Model.ConfirmedBookings" title="Confirmed @Model.ConfirmedBookings"></span>
+                    <span class="seg status-pending" style="flex:@Model.PendingBookings" title="Pending @Model.PendingBookings"></span>
+                    <span class="seg status-cancelled" style="flex:@Model.CancelledBookings" title="Cancelled @Model.CancelledBookings"></span>
+                </div>
+                <div class="legend-row mb-4">
+                    <span><i class="dot status-confirmed"></i>Confirmed @Model.Percent(Model.ConfirmedBookings)%</span>
+                    <span><i class="dot status-pending"></i>Pending @Model.Percent(Model.PendingBookings)%</span>
+                    <span><i class="dot status-cancelled"></i>Cancelled @Model.Percent(Model.CancelledBookings)%</span>
+                </div>
+
+                <h3 class="mini-title">Top destinations</h3>
+                @{ var maxDest = Model.TopDestinations.Count == 0 ? 1 : Model.TopDestinations.Max(d => d.Bookings); }
+                <ul class="rank-list">
+                    @foreach (var d in Model.TopDestinations)
+                    {
+                        <li>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="fw-medium"><i class="bi bi-geo-alt text-muted me-1"></i>@d.Destination</span>
+                                <span class="text-muted">@d.Bookings bookings</span>
+                            </div>
+                            <div class="meter meter-thin"><span style="width:@((d.Bookings * 100 / maxDest))%"></span></div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent bookings + upcoming departures -->
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card-panel">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Recent bookings</h2>
+                    <p class="panel-subtitle">Latest activity across all channels</p>
+                </div>
+                <a asp-controller="Bookings" asp-action="Index" class="btn btn-sm btn-light">View all</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern mb-0">
+                    <thead>
+                    <tr><th>Reference</th><th>Customer</th><th>Route</th><th class="text-end">Amount</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var b in Model.RecentBookings)
+                    {
+                        <tr class="row-link" data-href="@Url.Action("Details", "Bookings", new { id = b.Id })">
+                            <td><span class="ref-code">@b.BookingReference</span><div class="small text-muted">@Fmt.Relative(b.BookingDate)</div></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar avatar-sm @UiFormatter.AvatarClass(b.Customer!.FullName)">@b.Customer.Initials</span>
+                                    <span class="text-truncate">@b.Customer.FullName</span>
+                                </div>
+                            </td>
+                            <td><span class="route-inline">@b.Trip!.Source <i class="bi bi-arrow-right"></i> @b.Trip.Destination</span></td>
+                            <td class="text-end fw-semibold">@Fmt.Money(b.TotalPrice)</td>
+                            <td><partial name="_BookingStatus" model="b.Status" /></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card-panel h-100">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title">Next departures</h2>
+                    <p class="panel-subtitle">Upcoming trips and seat availability</p>
+                </div>
+            </div>
+            <div class="panel-body pt-0">
+                @if (!Model.NextDepartures.Any())
+                {
+                    <p class="text-muted small">No upcoming departures.</p>
+                }
+                @foreach (var t in Model.NextDepartures)
+                {
+                    <a class="departure-item" asp-controller="Trips" asp-action="Details" asp-route-id="@t.Id">
+                        <div class="departure-date">
+                            <span>@t.DepartureDate.ToString("dd")</span>
+                            <small>@t.DepartureDate.ToString("MMM")</small>
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="fw-semibold text-truncate"><i class="bi @UiFormatter.TransportIcon(t.TransportType) text-muted me-1"></i>@t.Source → @t.Destination</div>
+                            <div class="small text-muted">@t.TripCode · @Fmt.Time(t.DepartureDate) UTC · @t.AvailableSeats/@t.TotalSeats seats left</div>
+                            <div class="meter meter-thin mt-1"><span style="width:@(t.OccupancyPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+                        </div>
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="dashboard-data">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartData))</script>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="~/js/charts.js" asp-append-version="true"></script>
+}

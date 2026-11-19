@@ -1,0 +1,95 @@
+@model CustomerIndexViewModel
+@{
+    var page = Model.Customers;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Customers</h1>
+        <p class="page-subtitle">Manage traveller profiles, contact details and booking history</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-modal-url="@Url.Action("Create")"><i class="bi bi-person-plus me-1"></i>Add customer</button>
+    </div>
+</div>
+
+<div class="card-panel">
+    <form class="filter-bar" method="get" data-auto-submit>
+        <div class="input-icon flex-grow-1">
+            <i class="bi bi-search"></i>
+            <input type="search" class="form-control" name="search" value="@Model.Search" placeholder="Search by name, email, phone or city…" />
+        </div>
+        <select name="country" class="form-select w-auto">
+            <option value="">All countries</option>
+            @foreach (var c in Model.Countries)
+            {
+                <option value="@c" selected="@(c == Model.Country)">@c</option>
+            }
+        </select>
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel me-1"></i>Filter</button>
+        @if (!string.IsNullOrEmpty(Model.Search) || !string.IsNullOrEmpty(Model.Country))
+        {
+            <a class="btn btn-link text-decoration-none" asp-action="Index">Clear</a>
+        }
+    </form>
+
+    @if (!page.Items.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-people"></i>
+            <h3>No customers found</h3>
+            <p>Try a different search, or add a new customer.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0">
+                <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Location</th>
+                    <th class="text-center">Bookings</th>
+                    <th class="text-end">Total spent</th>
+                    <th>Customer since</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var c in page.Items)
+                {
+                    <tr>
+                        <td>
+                            <a class="d-flex align-items-center gap-2 text-reset text-decoration-none" asp-action="Details" asp-route-id="@c.Id">
+                                <span class="avatar @UiFormatter.AvatarClass(c.FullName)">@c.Initials</span>
+                                <span class="min-w-0">
+                                    <span class="d-block fw-semibold text-truncate">@c.FullName</span>
+                                    <span class="d-block small text-muted text-truncate">@c.Email</span>
+                                </span>
+                            </a>
+                        </td>
+                        <td class="text-nowrap">@c.Phone</td>
+                        <td>@c.City<span class="text-muted">@(c.Country is null ? "" : $", {c.Country}")</span></td>
+                        <td class="text-center"><span class="count-chip">@c.BookingCount</span></td>
+                        <td class="text-end fw-semibold">@Fmt.Money(c.TotalSpent)</td>
+                        <td class="text-muted small">@Fmt.Date(c.CreatedAt)</td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <a class="btn btn-sm btn-icon" asp-action="Details" asp-route-id="@c.Id" title="View"><i class="bi bi-eye"></i></a>
+                                <button class="btn btn-sm btn-icon" data-modal-url="@Url.Action("Edit", new { id = c.Id })" title="Edit"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-icon text-danger" title="Delete"
+                                        data-confirm-action="@Url.Action("Delete", new { id = c.Id })"
+                                        data-confirm-title="Delete @c.FullName?"
+                                        data-confirm-message="This permanently removes the customer profile. Customers with bookings cannot be deleted."
+                                        data-confirm-button="Delete customer"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @await Html.PartialAsync("_Pagination", (page.Page, page.TotalPages, page.FirstItem, page.LastItem, page.TotalCount, "customers"))
+</div>

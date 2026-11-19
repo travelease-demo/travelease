@@ -1,0 +1,112 @@
+# syntax=docker/dockerfile:1
+# =============================================================================================
+# TravelEase - "every instruction" learning Dockerfile
+#
+# Demonstrates all 15 instructions in a realistic way:
+#   FROM  WORKDIR  COPY  ADD  RUN  CMD  ENTRYPOINT  EXPOSE  ENV  ARG  USER  LABEL  SHELL  VOLUME  HEALTHCHECK
+#
+# Build (from the TravelEase folder):
+#   docker build -f docker/Dockerfile.instructions -t travelease:instructions \
+#       --build-arg APP_VERSION=1.1.0 --build-arg BUILD_CONFIGURATION=Release .
+# =============================================================================================
+
+# [ARG] declared before FROM -> usable inside FROM. Override: --build-arg DOTNET_VERSION=8.0
+ARG DOTNET_VERSION=8.0
+
+# [FROM] full SDK image for compiling
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS build
+
+# [ARG] build-time only variables (not present in the final image unless copied into ENV)
+ARG BUILD_CONFIGURATION=Release
+ARG APP_VERSION=1.0.0
+
+# [SHELL] change the shell used by shell-form RUN/CMD/ENTRYPOINT. With "-o pipefail" a pipeline
+# fails if ANY command fails (the default /bin/sh -c only checks the last command in the pipe).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# [WORKDIR] creates the directory if needed and makes it the current directory
+WORKDIR /src
+
+# [COPY] project file first -> restore layer is cached between source-code changes
+COPY TravelEase.csproj ./
+
+# [RUN] shell form (runs through the SHELL above). The pipe to tee would hide a restore failure
+# without pipefail.
+RUN dotnet restore TravelEase.csproj | tee /tmp/restore.log
+
+COPY . .
+RUN dotnet publish TravelEase.csproj -c "$BUILD_CONFIGURATION" -o /app/publish --no-restore \
+        -p:UseAppHost=false -p:Version="$APP_VERSION" \
+    && echo "Published size: $(du -sh /app/publish | cut -f1)"
+
+# ---------------------------------------------------------------------------------------------
+# Runtime stage
+# ---------------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION} AS final
+
+# ARGs must be re-declared in every stage that uses them
+ARG APP_VERSION=1.0.0
+ARG APP_UID=10001
+
+# [LABEL] metadata - view with: docker inspect --format '{{json .Config.Labels}}' travelease:instructions
+LABEL org.opencontainers.image.title="TravelEase" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.vendor="TravelEase Platform Team" \
+      maintainer="platform-team@travelease.example" \
+      com.travelease.dockerfile="instructions"
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# [RUN] install curl for the HEALTHCHECK below, and clean apt lists in the SAME layer to keep it small
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# [RUN] create a dedicated non-root user/group with a fixed UID (handy for volume permissions)
+RUN groupadd --system --gid "${APP_UID}" travelease \
+    && useradd --system --uid "${APP_UID}" --gid travelease --no-create-home --shell /usr/sbin/nologin travelease
+
+# [ENV] runtime configuration, persisted in the image (override with docker run -e)
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_HTTP_PORTS=8080 \
+    App__Version=${APP_VERSION} \
+    Storage__ReportsPath=/app/data/reports \
+    Storage__DataProtectionKeysPath=/app/data/keys \
+    WAIT_FOR_DB=false
+
+WORKDIR /app
+
+# [COPY] from another stage (multi-stage build)
+COPY --from=build /app/publish .
+
+# [COPY] the entrypoint script; strip Windows CRLF line endings defensively and make it executable
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod 0755 /usr/local/bin/docker-entrypoint.sh
+
+# [ADD] a LOCAL tar archive is extracted automatically (COPY would copy the .tar.gz as-is).
+# It seeds the reports directory with sample files; because the path is a VOLUME, Docker copies
+# these files into a new, empty named volume the first time it is mounted.
+ADD docker/assets/sample-reports.tar.gz /app/data/reports/
+
+RUN chown -R travelease:travelease /app/data
+
+# [USER] everything from here on - and the running container - uses the non-root user
+USER travelease
+
+# [VOLUME] declare /app/data as externally mounted storage (anonymous volume if none is given)
+VOLUME ["/app/data"]
+
+# [EXPOSE] documents the port the app listens on inside the container
+EXPOSE 8080
+
+# [HEALTHCHECK] shell form so ${ASPNETCORE_HTTP_PORTS} is expanded at check time
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS "http://localhost:${ASPNETCORE_HTTP_PORTS}/health/ready" > /dev/null || exit 1
+
+# [ENTRYPOINT] exec form - always runs; receives CMD (or `docker run` args) as "$@"
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# [CMD] default arguments for the ENTRYPOINT; replace them at run time, e.g.
+#   docker run --rm travelease:instructions dotnet TravelEase.dll --urls http://+:9090
+#   docker run --rm -it --entrypoint bash travelease:instructions      (override ENTRYPOINT)
+CMD ["dotnet", "TravelEase.dll"]

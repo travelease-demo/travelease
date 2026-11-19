@@ -1,0 +1,144 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    string Active(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    var title = ViewData["Title"]?.ToString() ?? "Dashboard";
+    var envName = Env.EnvironmentName;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title · @Fmt.Options.Name</title>
+    <link rel="icon" type="image/svg+xml" href="~/images/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body data-currency="@Fmt.Currency">
+<div id="page-progress" class="page-progress" aria-hidden="true"></div>
+
+<div class="app-shell">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <a class="sidebar-brand" href="/">
+            <img src="~/images/logo.svg" alt="" width="36" height="36" />
+            <span>
+                <strong>@Fmt.Options.Name</strong>
+                <small>@Fmt.Options.Tagline</small>
+            </span>
+        </a>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">Overview</div>
+            <a class="nav-link @Active("Dashboard")" href="/"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a>
+            <a class="nav-link @Active("Reports")" asp-controller="Reports" asp-action="Index"><i class="bi bi-bar-chart-line-fill"></i><span>Reports</span></a>
+
+            <div class="nav-section">Operations</div>
+            <a class="nav-link @Active("Bookings")" asp-controller="Bookings" asp-action="Index"><i class="bi bi-ticket-perforated-fill"></i><span>Bookings</span></a>
+            <a class="nav-link @Active("Customers")" asp-controller="Customers" asp-action="Index"><i class="bi bi-people-fill"></i><span>Customers</span></a>
+            <a class="nav-link @Active("Trips")" asp-controller="Trips" asp-action="Index"><i class="bi bi-airplane-engines-fill"></i><span>Trips</span></a>
+
+            <div class="nav-section">System</div>
+            <a class="nav-link @Active("Settings")" asp-controller="Settings" asp-action="Index"><i class="bi bi-gear-fill"></i><span>Settings</span></a>
+            <a class="nav-link" href="/health" target="_blank" rel="noopener"><i class="bi bi-heart-pulse-fill"></i><span>Health</span><i class="bi bi-box-arrow-up-right ms-auto small opacity-50"></i></a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="env-card">
+                <span class="env-badge @UiFormatter.EnvironmentClass(envName)">@envName</span>
+                <div class="small mt-2">v@(Fmt.Version)</div>
+                <div class="small text-truncate" title="Host / container ID">@Environment.MachineName</div>
+            </div>
+        </div>
+    </aside>
+    <div class="sidebar-backdrop" data-sidebar-close></div>
+
+    <!-- ===== Main ===== -->
+    <div class="main">
+        <header class="topbar">
+            <button class="btn btn-icon d-lg-none" type="button" data-sidebar-toggle aria-label="Open navigation">
+                <i class="bi bi-list"></i>
+            </button>
+            <div class="topbar-title">
+                <span class="text-muted small d-none d-md-inline">@Fmt.Options.Name /</span>
+                <strong>@title</strong>
+            </div>
+
+            <form class="topbar-search d-none d-md-flex" asp-controller="Bookings" asp-action="Find" method="get" role="search">
+                <i class="bi bi-search"></i>
+                <input type="search" name="q" class="form-control" placeholder="Find booking by reference, customer or route…" aria-label="Search bookings" />
+            </form>
+
+            <div class="topbar-actions">
+                <span class="env-badge @UiFormatter.EnvironmentClass(envName) d-none d-sm-inline-flex">@envName</span>
+                <button type="button" class="btn btn-primary btn-sm" data-modal-url="@Url.Action("Create", "Bookings")">
+                    <i class="bi bi-plus-lg"></i><span class="d-none d-sm-inline ms-1">New booking</span>
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-icon avatar-btn" data-bs-toggle="dropdown" aria-label="Account">
+                        <span class="avatar avatar-sm avatar-3">OA</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li class="dropdown-header">Operations Admin<br /><small class="text-muted">ops@travelease.example</small></li>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li><a class="dropdown-item" asp-controller="Settings" asp-action="Index"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                        <li><a class="dropdown-item" href="/health/ready" target="_blank"><i class="bi bi-activity me-2"></i>Readiness</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+
+        <main class="content" id="content">
+            @RenderBody()
+        </main>
+
+        <footer class="app-footer">
+            <span>© @DateTime.UtcNow.Year @Fmt.Options.Name · v@(Fmt.Version)</span>
+            <span class="text-muted">Served by <code>@Environment.MachineName</code> · @envName</span>
+        </footer>
+    </div>
+</div>
+
+<!-- Generic modal: content is loaded via fetch from data-modal-url -->
+<div class="modal fade" id="appModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" id="appModalContent"></div>
+    </div>
+</div>
+
+<!-- Confirmation modal: used by any button with data-confirm-action -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" id="confirmForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" id="confirmReturnUrl" />
+            <div class="modal-body text-center p-4">
+                <div class="confirm-icon mx-auto mb-3" id="confirmIcon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                <h5 class="fw-semibold mb-2" id="confirmTitle">Are you sure?</h5>
+                <p class="text-muted mb-0" id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger" id="confirmButton" data-loading-text="Working…">Confirm</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer"
+     data-toast-message="@TempData["ToastMessage"]" data-toast-type="@TempData["ToastType"]"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.20.0/jquery.validate.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/4.0.0/jquery.validate.unobtrusive.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

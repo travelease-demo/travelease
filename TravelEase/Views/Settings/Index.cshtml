@@ -1,0 +1,194 @@
+@model SettingsViewModel
+@{
+    string HealthClass(string status) => status switch
+    {
+        "Healthy" => "status-confirmed",
+        "Degraded" => "status-pending",
+        _ => "status-cancelled"
+    };
+    string HealthIcon(string status) => status switch
+    {
+        "Healthy" => "bi-check-circle-fill",
+        "Degraded" => "bi-exclamation-triangle-fill",
+        _ => "bi-x-circle-fill"
+    };
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Application settings</h1>
+        <p class="page-subtitle">Runtime, configuration, database and health information for this instance</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-light" href="/health" target="_blank"><i class="bi bi-heart-pulse me-1"></i>/health</a>
+        <a class="btn btn-light" href="/health/live" target="_blank">/health/live</a>
+        <a class="btn btn-light" href="/health/ready" target="_blank">/health/ready</a>
+        <a class="btn btn-primary" asp-action="Index"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
+    </div>
+</div>
+
+<!-- Overview cards -->
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card compact">
+            <div class="stat-label">Application</div>
+            <div class="stat-value fs-4">@Model.AppName</div>
+            <div class="stat-meta">Version <code>@Model.Version</code></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card compact">
+            <div class="stat-label">Environment</div>
+            <div class="stat-value fs-4"><span class="env-badge env-lg @UiFormatter.EnvironmentClass(Model.Environment)">@Model.Environment</span></div>
+            <div class="stat-meta">ASPNETCORE_ENVIRONMENT</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card compact">
+            <div class="stat-label">Database</div>
+            <div class="stat-value fs-4">
+                <span class="status-pill @(Model.DatabaseConnected ? "status-confirmed" : "status-cancelled") fs-6">
+                    <i class="bi @(Model.DatabaseConnected ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DatabaseConnected ? "Connected" : "Disconnected")
+                </span>
+            </div>
+            <div class="stat-meta">@Model.DatabaseHost @(Model.DatabaseLatencyMs.HasValue ? $"· {Model.DatabaseLatencyMs} ms" : "")</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card compact">
+            <div class="stat-label">Application health</div>
+            <div class="stat-value fs-4">
+                <span class="status-pill @HealthClass(Model.OverallHealth) fs-6"><i class="bi @HealthIcon(Model.OverallHealth)"></i>@Model.OverallHealth</span>
+            </div>
+            <div class="stat-meta">@Model.HealthEntries.Count checks</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="card-panel h-100">
+            <div class="panel-header"><h2 class="panel-title"><i class="bi bi-cpu me-2 text-muted"></i>Runtime</h2></div>
+            <div class="panel-body pt-0">
+                <dl class="kv-list">
+                    <dt>Application name</dt><dd>@Model.AppName</dd>
+                    <dt>Version</dt><dd><code>@Model.Version</code></dd>
+                    <dt>Environment</dt><dd>@Model.Environment</dd>
+                    <dt>Host name</dt><dd><code>@Model.HostName</code> @if (Model.RunningInContainer) { <span class="status-pill status-scheduled ms-1"><i class="bi bi-box-seam"></i>Container</span> }</dd>
+                    <dt>Operating system</dt><dd>@Model.OperatingSystem</dd>
+                    <dt>Runtime</dt><dd>@Model.Framework (@Model.Architecture)</dd>
+                    <dt>Process user</dt><dd><code>@Model.ProcessUser</code> @if (Model.ProcessUser == "root") { <span class="status-pill status-pending ms-1">running as root</span> }</dd>
+                    <dt>Process ID</dt><dd>@Model.ProcessId</dd>
+                    <dt>Started (UTC)</dt><dd>@Fmt.DateTimeShort(Model.StartedAtUtc)</dd>
+                    <dt>Uptime</dt><dd>@Fmt.Duration(Model.Uptime)</dd>
+                    <dt>Memory (working set)</dt><dd>@Model.WorkingSetMb MB</dd>
+                    <dt>Listening on</dt><dd>@foreach (var url in Model.ListeningUrls) { <code class="me-2">@url</code> }</dd>
+                    <dt>Content root</dt><dd><code>@Model.ContentRoot</code></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card-panel mb-3">
+            <div class="panel-header"><h2 class="panel-title"><i class="bi bi-database me-2 text-muted"></i>Database connection</h2></div>
+            <div class="panel-body pt-0">
+                <dl class="kv-list">
+                    <dt>Status</dt>
+                    <dd>
+                        <span class="status-pill @(Model.DatabaseConnected ? "status-confirmed" : "status-cancelled")">
+                            <i class="bi @(Model.DatabaseConnected ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DatabaseConnected ? "Connected" : "Not connected")
+                        </span>
+                    </dd>
+                    <dt>Server</dt><dd><code>@Model.DatabaseHost</code></dd>
+                    <dt>Database</dt><dd><code>@Model.DatabaseName</code></dd>
+                    @if (Model.DatabaseServerVersion is not null)
+                    {
+                        <dt>Server version</dt><dd class="small">@Model.DatabaseServerVersion</dd>
+                    }
+                    @if (Model.DatabaseError is not null)
+                    {
+                        <dt>Error</dt><dd class="text-danger small">@Model.DatabaseError</dd>
+                    }
+                    <dt>Initialisation</dt><dd class="small">@Model.DatabaseInitState</dd>
+                    <dt>Migrations</dt>
+                    <dd class="small">
+                        @Model.AppliedMigrations.Count applied, @Model.PendingMigrations.Count pending
+                        @foreach (var m in Model.AppliedMigrations) { <div><i class="bi bi-check2 text-success me-1"></i><code>@m</code></div> }
+                        @foreach (var m in Model.PendingMigrations) { <div><i class="bi bi-hourglass text-warning me-1"></i><code>@m</code></div> }
+                    </dd>
+                    <dt>Connection string</dt><dd><code class="small text-break">@Model.MaskedConnectionString</code></dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card-panel">
+            <div class="panel-header">
+                <h2 class="panel-title"><i class="bi bi-heart-pulse me-2 text-muted"></i>Health checks</h2>
+                <span class="status-pill @HealthClass(Model.OverallHealth)"><i class="bi @HealthIcon(Model.OverallHealth)"></i>@Model.OverallHealth</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern align-middle mb-0">
+                    <thead><tr><th>Check</th><th>Probe</th><th>Status</th><th class="text-end">Duration</th></tr></thead>
+                    <tbody>
+                    @foreach (var h in Model.HealthEntries)
+                    {
+                        <tr>
+                            <td><span class="fw-medium">@h.Name</span><div class="small text-muted">@h.Description</div></td>
+                            <td>@foreach (var tag in h.Tags) { <code class="me-1">/health/@tag</code> }</td>
+                            <td><span class="status-pill @HealthClass(h.Status)"><i class="bi @HealthIcon(h.Status)"></i>@h.Status</span></td>
+                            <td class="text-end small">@h.DurationMs ms</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card-panel h-100">
+            <div class="panel-header"><h2 class="panel-title"><i class="bi bi-hdd-stack me-2 text-muted"></i>File storage (volume)</h2></div>
+            <div class="panel-body pt-0">
+                <dl class="kv-list">
+                    <dt>Reports path</dt><dd><code>@Model.ReportStorage.Path</code></dd>
+                    <dt>Exists</dt><dd>@(Model.ReportStorage.Exists ? "Yes" : "No")</dd>
+                    <dt>Writable</dt>
+                    <dd>
+                        <span class="status-pill @(Model.ReportStorage.Writable ? "status-confirmed" : "status-cancelled")">@(Model.ReportStorage.Writable ? "Writable" : "Not writable")</span>
+                        @if (!Model.ReportStorage.Writable)
+                        {
+                            <div class="small text-muted mt-1">Check the volume's ownership matches the container user (UID).</div>
+                        }
+                    </dd>
+                    <dt>Files</dt><dd>@Model.ReportStorage.Files.Count (@Fmt.Bytes(Model.ReportStorage.TotalBytes))</dd>
+                </dl>
+                <a asp-controller="Reports" asp-action="Index" class="btn btn-sm btn-light"><i class="bi bi-folder2-open me-1"></i>Open generated files</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6">
+        <div class="card-panel h-100">
+            <div class="panel-header">
+                <div>
+                    <h2 class="panel-title"><i class="bi bi-sliders me-2 text-muted"></i>Effective configuration</h2>
+                    <p class="panel-subtitle">Selected settings and environment variables (secrets masked)</p>
+                </div>
+            </div>
+            <div class="table-responsive config-table">
+                <table class="table table-modern table-sm mb-0">
+                    <tbody>
+                    @foreach (var c in Model.Configuration)
+                    {
+                        <tr>
+                            <td class="small text-nowrap"><code>@c.Key</code></td>
+                            <td class="small text-break">@if (c.Masked) { <i class="bi bi-lock-fill text-muted me-1"></i> }@c.Value</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

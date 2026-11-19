@@ -1,0 +1,113 @@
+@model TripIndexViewModel
+@{
+    var page = Model.Trips;
+    var f = Model.Filter;
+    var hasFilter = !string.IsNullOrEmpty(f.Search) || f.Status.HasValue || f.Transport.HasValue || f.From.HasValue || f.To.HasValue;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Trips</h1>
+        <p class="page-subtitle">@Model.ScheduledCount open departures · @Fmt.Number(Model.TotalSeatsAvailable) seats available to sell</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-modal-url="@Url.Action("Create")"><i class="bi bi-plus-lg me-1"></i>Add trip</button>
+    </div>
+</div>
+
+<div class="card-panel">
+    <form class="filter-bar" method="get" data-auto-submit>
+        <div class="input-icon flex-grow-1">
+            <i class="bi bi-search"></i>
+            <input type="search" class="form-control" name="search" value="@f.Search" placeholder="Search code, source, destination or operator…" />
+        </div>
+        <select name="status" class="form-select w-auto" aria-label="Status">
+            <option value="">All statuses</option>
+            @foreach (var s in Enum.GetValues<TripStatus>())
+            {
+                <option value="@s" selected="@(f.Status == s)">@s</option>
+            }
+        </select>
+        <select name="transport" class="form-select w-auto" aria-label="Transport">
+            <option value="">All transport</option>
+            @foreach (var t in Enum.GetValues<TransportType>())
+            {
+                <option value="@t" selected="@(f.Transport == t)">@t</option>
+            }
+        </select>
+        <input type="date" name="from" class="form-control w-auto" value="@f.From?.ToString("yyyy-MM-dd")" aria-label="Departing from" title="Departing from" />
+        <input type="date" name="to" class="form-control w-auto" value="@f.To?.ToString("yyyy-MM-dd")" aria-label="Departing to" title="Departing to" />
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel me-1"></i>Filter</button>
+        @if (hasFilter)
+        {
+            <a class="btn btn-link text-decoration-none" asp-action="Index">Clear</a>
+        }
+    </form>
+
+    @if (!page.Items.Any())
+    {
+        <div class="empty-state">
+            <i class="bi bi-airplane"></i>
+            <h3>No trips found</h3>
+            <p>Adjust the filters or add a new trip.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0">
+                <thead>
+                <tr>
+                    <th>Trip</th>
+                    <th>Route</th>
+                    <th>Departure</th>
+                    <th>Arrival</th>
+                    <th style="min-width:140px">Seats</th>
+                    <th class="text-end">Price</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var t in page.Items)
+                {
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="transport-icon"><i class="bi @UiFormatter.TransportIcon(t.TransportType)"></i></span>
+                                <div>
+                                    <a class="fw-semibold text-reset text-decoration-none" asp-action="Details" asp-route-id="@t.Id">@t.TripCode</a>
+                                    <div class="small text-muted">@(t.Operator ?? t.TransportType.ToString())</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="route-inline">@t.Source <i class="bi bi-arrow-right"></i> @t.Destination</span></td>
+                        <td class="small text-nowrap">@Fmt.Date(t.DepartureDate)<div class="text-muted">@Fmt.Time(t.DepartureDate) UTC</div></td>
+                        <td class="small text-nowrap">@Fmt.Date(t.ArrivalDate)<div class="text-muted">@Fmt.Time(t.ArrivalDate) · @Fmt.Duration(t.Duration)</div></td>
+                        <td>
+                            <div class="d-flex justify-content-between small"><span>@t.AvailableSeats left</span><span class="text-muted">@t.TotalSeats</span></div>
+                            <div class="meter meter-thin @(t.OccupancyPercent >= 90 ? "meter-hot" : "")"><span style="width:@(t.OccupancyPercent.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+                        </td>
+                        <td class="text-end fw-semibold">@Fmt.Money(t.TicketPrice)</td>
+                        <td><span class="status-pill @UiFormatter.TripStatusClass(t.Status)">@t.Status</span></td>
+                        <td class="text-end text-nowrap">
+                            @if (t.IsBookable)
+                            {
+                                <button class="btn btn-sm btn-icon text-primary" data-modal-url="@Url.Action("Create", "Bookings", new { tripId = t.Id })" title="Book"><i class="bi bi-ticket-perforated"></i></button>
+                            }
+                            <a class="btn btn-sm btn-icon" asp-action="Details" asp-route-id="@t.Id" title="View"><i class="bi bi-eye"></i></a>
+                            <button class="btn btn-sm btn-icon" data-modal-url="@Url.Action("Edit", new { id = t.Id })" title="Edit"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-icon text-danger" title="Delete"
+                                    data-confirm-action="@Url.Action("Delete", new { id = t.Id })"
+                                    data-confirm-title="Delete trip @t.TripCode?"
+                                    data-confirm-message="Trips that already have bookings cannot be deleted — set their status to Cancelled instead."
+                                    data-confirm-button="Delete trip"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @await Html.PartialAsync("_Pagination", (page.Page, page.TotalPages, page.FirstItem, page.LastItem, page.TotalCount, "trips"))
+</div>

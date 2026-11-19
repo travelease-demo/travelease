@@ -1,0 +1,54 @@
+@model CustomerFormModel
+<form asp-controller="Customers" asp-action="@(Model.IsEdit ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post" data-ajax-form novalidate>
+    <div class="modal-header">
+        <div class="modal-icon tint-aqua"><i class="bi @(Model.IsEdit ? "bi-person-gear" : "bi-person-plus")"></i></div>
+        <div>
+            <h5 class="modal-title">@(Model.IsEdit ? "Edit customer" : "Add customer")</h5>
+            <p class="modal-subtitle">@(Model.IsEdit ? "Update the traveller's profile and contact details." : "Create a new traveller profile.")</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger small"></div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="FirstName" class="form-label"></label>
+                <input asp-for="FirstName" class="form-control" autocomplete="given-name" autofocus />
+                <span asp-validation-for="FirstName" class="invalid-feedback d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="LastName" class="form-label"></label>
+                <input asp-for="LastName" class="form-control" autocomplete="family-name" />
+                <span asp-validation-for="LastName" class="invalid-feedback d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Email" class="form-label"></label>
+                <div class="input-icon"><i class="bi bi-envelope"></i><input asp-for="Email" class="form-control" type="email" placeholder="name@example.com" /></div>
+                <span asp-validation-for="Email" class="invalid-feedback d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Phone" class="form-label"></label>
+                <div class="input-icon"><i class="bi bi-telephone"></i><input asp-for="Phone" class="form-control" type="tel" placeholder="+91 98200 12345" /></div>
+                <span asp-validation-for="Phone" class="invalid-feedback d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="City" class="form-label"></label>
+                <input asp-for="City" class="form-control" />
+                <span asp-validation-for="City" class="invalid-feedback d-block"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Country" class="form-label"></label>
+                <input asp-for="Country" class="form-control" list="country-list" />
+                <datalist id="country-list">
+                    <option value="India"></option><option value="United Arab Emirates"></option><option value="United Kingdom"></option>
+                    <option value="United States"></option><option value="Singapore"></option><option value="Australia"></option>
+                </datalist>
+                <span asp-validation-for="Country" class="invalid-feedback d-block"></span>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" data-loading-text="Saving…"><i class="bi bi-check-lg me-1"></i>@(Model.IsEdit ? "Save changes" : "Add customer")</button>
+    </div>
+</form>
